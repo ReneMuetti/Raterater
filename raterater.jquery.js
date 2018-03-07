@@ -7,22 +7,42 @@
 ;(function( $ ) {
     var data = {};
     var opts = {};
+    
+    var MODE_INPUT = 'input';
+    var MODE_CALLBACK = 'callback';
+    
+    var object;
+    
     var elems = null;
+    var inputCounter = 0;
+    
     $.fn.raterater = function(options) {
 
         /* Default options
          */
         $.fn.raterater.defaults = {
-            submitFunction: 'submitRating', // this function will be called when a rating is chosen
+            submitFunction: '', // this function will be called when a rating is chosen
             allowChange: false, // allow the user to change their mind after they have submitted a rating
             starWidth: 20, // width of the stars in pixels
             spaceWidth: 5, // spacing between stars in pixels
-            numStars: 5
+            numStars: 5,
+            isStatic: false,
+            mode: MODE_CALLBACK,
+            step: false,
         };
 
         opts = $.extend( {}, $.fn.raterater.defaults, options );
         opts.width = opts.numStars * ( opts.starWidth + opts.spaceWidth ); // total rating div width
         opts.starAspect = 0.9226; // aspect ratio of the font awesome stars
+
+        /* Validate the step option is between 0 and 1 if present
+         */
+        if(opts.step !== false){
+            opts.step = parseFloat(opts.step);
+            if(opts.step <= 0 || opts.step > 1){
+                throw "Error: step must be between 0 and 1";
+            }
+        }
 
         elems = this;
 
@@ -37,24 +57,40 @@
         return this;
     }
 
-    function init() {
-        
+    function setValue (id,stars){
+    	
+    	$('.raterater-input[data-id="'+ id + '"]').data('input').val(stars).change();   	
+    }
+    
+    function init() {        
         elems.each( function() {
-        
-            var $this = $( this );
-            var id = dataId( $this );
-
-            /* Uh oh... We really need a data-id or bad things happen
-             */
-            if( !id ) {
-                throw "Error: Each raterater element needs a unique data-id attribute.";
-            }
-
-            /* This is where we store our important data for each rating box
-             */
-            data[id] = {
-                state: 'inactive', // inactive, hover, or rated
-            };
+            var $this = $( this );       
+            
+            if(opts.mode == MODE_INPUT && ($this.prop("tagName") == 'INPUT' || $this.prop("tagName") == 'SELECT') ){       	
+            	var iId = 'input-' +(inputCounter++);
+            	var outer = $('<div class="raterater-input"></div>').attr('data-id', iId).attr('data-rating',$this.val()).data('input',$this);
+            	$this.attr('data-id', iId).attr('data-id', iId).attr('data-rating',$this.val()).data('input',$this).after(outer).hide();
+            	object = $this = outer;                	            	
+            }          
+            
+            object = $this;
+	       	 
+        	var id = dataId( $this );
+	
+	         /* Uh oh... We really need a data-id or bad things happen
+	          */
+	         if( !id ) {
+	             throw "Error: Each raterater element needs a unique data-id attribute.";
+	         }
+	
+	         /* This is where we store our important data for each rating box
+	          */
+	         data[id] = {
+	             state: 'inactive', // inactive, hover, or rated
+	             stars: null,
+	         };
+	        	
+	       
 
             /* Make our wrapper relative if it is static so we can position children absolutely
              */
@@ -68,6 +104,7 @@
             /* Clear out anything inside so we can append the relevent children
              */
             $this.html( '' );
+            
 
             /* We have 4 div children here as different star layers
              * Layer 1 contains the dull filled stars as a background
@@ -95,16 +132,25 @@
 
             /* Register mouse event callbacks
              */
-            $this.find( '.raterater-cover-layer' ).hover( mouseEnter, mouseLeave );
-            $this.find( '.raterater-cover-layer' ).mousemove( hiliteStarsHover );
-            $this.find( '.raterater-cover-layer' ).click( rate );
+            if(!opts.isStatic){
+            	$this.find( '.raterater-cover-layer' ).hover( mouseEnter, mouseLeave );
+            	$this.find( '.raterater-cover-layer' ).mousemove( hiliteStarsHover );
+            	$this.find( '.raterater-cover-layer' ).click( rate );
+        	}
+      
         });
     }
 
     function initializePositions() {
         elems.each( function() {
-           
-            var $this = $( this );
+        	
+        	var $this;
+        	
+        	if(opts.mode == MODE_INPUT)
+        		$this = $(this).parent().find('.raterater-input[data-id="'+dataId(this)+'"]');
+        	else
+        		$this = $( this );
+        	
             var id = dataId( $this );
         
             /* Set the width and height of the raterater wrapper and layers
@@ -153,6 +199,7 @@
         /* Set the state to 'rated' to disable functionality
          */
         data[id].state = 'rated';
+        data[id].stars = stars;
 
         /* Add the 'rated' class to the hover layer for additional styling flexibility
          */
@@ -160,8 +207,15 @@
 
         /* Call the user-defined callback function if it exists
          */
-        if( typeof window[opts.submitFunction] === 'function' );
-            window[opts.submitFunction]( id, stars );
+        
+        if(opts.mode != 'input' && ( (opts.submitFunction !== undefined && typeof opts.submitFunction === 'function') || (window[opts.submitFunction] !== undefined && typeof window[opts.submitFunction] === 'function') ))
+        	if ( opts.submitFunction !== undefined && typeof opts.submitFunction === 'function' )
+                opts.submitFunction( id, stars );
+            else
+                window[opts.submitFunction]( id, stars );
+        else  
+        	setValue(id, stars);
+        
     }
 
     /* Calculate the number of stars from the x position of the mouse relative to the cover layer
@@ -180,6 +234,13 @@
             partial_star = opts.starWidth;
         partial_star /= opts.starWidth;
 
+        /* Round to the nearest step if a step is provided
+         */
+        if(opts.step !== false){
+            var stepInt = 1 / opts.step
+            partial_star = (Math.round(partial_star * stepInt) / stepInt);
+        }
+        
         /* Store our result in the data object
          */
         data[id].whole_stars_hover = whole_stars;
@@ -270,22 +331,31 @@
      * This is the callback for the mouseleave event 
      */
     function mouseLeave(e) {
-        var id = dataId( $( e.target ).parent() );
+    	var $this = $( e.target ).parent();
+        var id = dataId( $this );
 
-        /* Leave it alone, we have already rated this item
+        /* hide the hover layer and show the rating layer
          */
-        if( data[id].state === 'rated' ) {
+        $( e.target ).parent().children( '.raterater-hover-layer' ).first().css( 'display', 'none' );
+        $( e.target ).parent().children( '.raterater-rating-layer' ).first().css( 'display','block' );
+        
+        /* Revert to the last rating, since we have already rated this item
+         */
+        if( data[id].state === 'rated' ) {        	
+        	 var rating = parseFloat( data[id].stars );
+             var whole = Math.floor( rating );
+             var partial = rating - whole;
+             hiliteStars (
+                 $this.find( '.raterater-rating-layer' ).first(), 
+                 whole, 
+                 partial );
+             
             return;
         }
 
         /* set the state to 'inactive'
          */
         data[id].state = 'inactive';
-
-        /* hide the hover layer and show the rating layer
-         */
-        $( e.target ).parent().children( '.raterater-hover-layer' ).first().css( 'display', 'none' );
-        $( e.target ).parent().children( '.raterater-rating-layer' ).first().css( 'display','block' );
     }
 
     /* Shorthand function to get the data-id of an element

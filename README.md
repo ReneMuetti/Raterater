@@ -15,6 +15,7 @@ Include the font-awesome css file, raterater.css, jquery, and raterater.jquery.j
 <script src="https://code.jquery.com/jquery-1.4.1.min.js"></script>
 <script src="raterater.jquery.js"></script>
 ```
+### Raterater as callback
 
 Write a callbaack function for handling the rating event
 
@@ -38,6 +39,22 @@ Initialize Raterater
 $( '.ratebox' ).raterater( { submitFunction: 'rateAlert' } );
 ```
 
+### Raterater as input field
+
+
+Create any number of input elements
+
+```html
+<input name="service" class="ratebox" value="3">
+<input name="delivery" class="ratebox">
+```
+
+Initialize Raterater
+
+```javascript
+$( '.ratebox' ).raterater( { mode: 'input' } );
+```
+
 See demo.html for an example.
 
 ## Options
@@ -46,9 +63,12 @@ Attribute|Default|Values|Description
 :-------:|:-----:|:----:|:----------
 submitFunction | 'submitRating' | String | A function name that will be called when the user selected a rating. The function should take 2 arguments: id and rating. The id is the data-id of the rating div and the rating is a float representation of the number of stars the user selected.
 allowChange | false | Boolean | If set to true, allows the user to change his rating. the submitFunction callback will be called again, so be prepared to handle this in your code.
+isStatic | false | Boolean | If set to true, the rating will initialized without any interaction (only for display).
 starWidth | 20 | Integer | Width of a star in pixels
 spaceWidth | 5 | Integer | Width of a space between two stars in pixels
 numStars | 5 | Integer | Total number of stars per rating box
+mode | 'callback' | String | Initialzation mode ('callback' or 'input'). Use 'input' to use raterater as form field, or use 'callback' to handle the rating with a custom javascript callback only.
+step | false | Float | Specify step increments for ratings. Float number between 0 and 1, for example if you want to allow only half stars, use 0.5, or whole stars use 1.
 
 ## Styling
 
